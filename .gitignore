@@ -1,0 +1,6 @@
+__pycache__/
+data/
+outputs/
+checkpoints/
+*.mp3
+*.wav
