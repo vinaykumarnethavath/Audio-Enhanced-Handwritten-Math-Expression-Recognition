@@ -1,6 +1,4 @@
 
-
-# ---------------- Dependency check ---------------------------
 import importlib.util, subprocess, sys, warnings, os, re, json, heapq
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -16,8 +14,6 @@ if importlib.util.find_spec("tensorflow") is None:
 
 warnings.filterwarnings("ignore")
 tf.get_logger().setLevel("ERROR")
-
-# Check for TPU/GPU strategy
 try:
     res = tf.distribute.cluster_resolver.TPUClusterResolver()
     tf.config.experimental_connect_to_cluster(res); tf.tpu.experimental.initialize_tpu_system(res)
@@ -26,8 +22,6 @@ try:
 except:
     strat = tf.distribute.get_strategy()
     print("⚠️ TPU not found – using", strat.__class__.__name__)
-
-# ----------------------- CONFIG ------------------------------
 MAX_STROKE = 500
 MAX_TOKENS = 100
 EMBED_DIM  = 256
@@ -43,7 +37,7 @@ PAD, START, END = "[PAD]", "[START]", "[END]"
 _tok_re = re.compile(r"\\[A-Za-z]+|[^ ]")
 ns = {'ink':'http://www.w3.org/2003/InkML'}
 
-# -------------------- TOKENISER ------------------------------
+# ---- TOKENISER ----
 def tokenize(expr):
     return _tok_re.findall(expr)
 
@@ -76,7 +70,7 @@ def encode(seqs, t2i):
 
     return np.asarray(dec_in, np.int32), np.asarray(dec_tar, np.int32)
 
-# -------------------- INKML PARSER --------------------------
+# ---- INKML PARSER -----
 def parse_inkml(path: Path):
     """Return strokes (N,3) with Δt & global normalisation + label str."""
     try:
@@ -120,9 +114,8 @@ def parse_inkml(path: Path):
             break
     return pts, latex
 
-# -------------------- DATASET PIPE ---------------------------
+# ----- DATASET PIPE -----
 def prepare_dataset(data_path: Path):
-    # Handle Zip extraction
     if data_path.is_file() and data_path.suffix == '.zip':
         zip_path = data_path
         unzip_dir = data_path.parent / data_path.stem
@@ -149,7 +142,7 @@ def prepare_dataset(data_path: Path):
     for ink_path in sorted(inkml_files):
         try:
             s, l = parse_inkml(ink_path)
-            if s is not None and l: # Ensure valid parse and label exists
+            if s is not None and l: 
                 strokes.append(s)
                 labels.append(l)
         except Exception as e:
@@ -179,7 +172,7 @@ def prepare_dataset(data_path: Path):
 
     return tfds(train_idx), tfds(val_idx), strokes, labels, t2i, i2t
 
-# -------------------- MODEL ----------------------------------
+# ---- MODEL ------
 class PosEnc(tf.keras.layers.Layer):
     def __init__(self, length, dim):
         super().__init__()
@@ -247,7 +240,7 @@ def build_model(vocab):
     )
     return model
 
-# -------------------- DECODERS -------------------------------
+# ---- DECODERS -----
 def greedy_decode(model, stroke, t2i, i2t):
     seq = np.full((1, MAX_TOKENS - 1), t2i[PAD], np.int32)
     seq[0, 0] = t2i[START]
@@ -309,7 +302,7 @@ def evaluate(model, strokes, labels, idx, t2i, i2t):
     print(f"Expression accuracy: {expr_ok / len(idx):.2%}")
     print(f"Token accuracy     : {tok_ok / max(1, tok_tot):.2%}")
 
-# -------------------- MAIN -----------------------------------
+# ----- MAIN ----
 if __name__ == "__main__":
 
     if 'google.colab' in sys.modules:
